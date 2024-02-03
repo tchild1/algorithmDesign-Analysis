@@ -52,7 +52,7 @@ class ConvexHullSolver(QObject):
 	# Hull solver main function and helper functions
 
 	def cHullSolver(self, points: List[QPointF]) -> ConvexHull:
-		if len(points) < 4:
+		if len(points) <= 3:
 			return self.createSmallHull(points)
 		else:
 			leftHull: ConvexHull = self.cHullSolver(points[:len(points)//2])
@@ -95,7 +95,9 @@ class ConvexHullSolver(QObject):
 		nodeOneTwoSlope = self.getSlope(nodeOne, nodeTwo)
 		nodeTwoThreeSlope = self.getSlope(nodeTwo, nodeThree)
 		nodeThreeOneSlope = self.getSlope(nodeThree, nodeOne)
-		if nodeOneTwoSlope <= nodeTwoThreeSlope < nodeThreeOneSlope or nodeTwoThreeSlope < nodeThreeOneSlope <= nodeOneTwoSlope or nodeThreeOneSlope <= nodeOneTwoSlope < nodeTwoThreeSlope:
+		if (nodeOneTwoSlope <= nodeTwoThreeSlope < nodeThreeOneSlope or 
+			nodeTwoThreeSlope < nodeThreeOneSlope <= nodeOneTwoSlope or 
+			nodeThreeOneSlope <= nodeOneTwoSlope < nodeTwoThreeSlope):
 			return True
 		else:
 			return False
@@ -106,7 +108,6 @@ class ConvexHullSolver(QObject):
 		else:
 			return nodeTwo
 
-	
 	def getHighAndLowPoint(self, nodeOne: QPointF, nodeTwo: QPointF) -> tuple[QPointF, QPointF]:
 		if nodeOne.y() > nodeTwo.y():
 			return nodeOne, nodeTwo
@@ -219,44 +220,27 @@ class ConvexHullSolver(QObject):
 		t1 = time.time()
 		points = sorted(points, key=lambda coordinate: coordinate.x())
 		t2 = time.time()
+		print('Time Elapsed (Sorting): {:3.3f} sec'.format(t2-t1))
 
 		t3 = time.time()
 		convexHull: ConvexHull = self.cHullSolver(points)
-		polygon: List[QLineF] = self.getPolygon(convexHull)
 		t4 = time.time()
 
+		polygon: List[QLineF] = self.getPolygon(convexHull)
 		self.showHull(polygon, RED)
 		self.showText('Time Elapsed (Convex Hull): {:3.3f} sec'.format(t4-t3))
+		print('Time Elapsed (Convex Hull): {:3.3f} sec'.format(t4-t3))
+
 
 	def getPolygon(self, convexHull: ConvexHull) -> List[QLineF]:
 		hull: List[QLineF] = []
-		hullSet: set = set()
 
 		firstNode: LinkedListNode = convexHull.getLeftNode()
-		hullSet.add(firstNode)
 		hull.append(QLineF(firstNode.getCoordinates(), firstNode.getPointsTo().getCoordinates()))
 		nextNode: LinkedListNode = firstNode.getPointsTo()
 
-		while nextNode not in hullSet:
-			hullSet.add(nextNode)
+		while nextNode != firstNode:
 			hull.append(QLineF(nextNode.getCoordinates(), nextNode.getPointsTo().getCoordinates()))
 			nextNode = nextNode.getPointsTo()
 
 		return hull
-
-
-# ptList = [QPointF(-0.5953131868542136, 0.48545400641747793), 
-# 		  QPointF(-0.5277211083630247, 0.36785735549528353), 
-# 		  QPointF(-0.49516410074486683, 0.6170161121201718), 
-# 		  QPointF(-0.4593888800452677, -0.015017353252701815), 
-# 		  QPointF(-0.34562136924110765, -0.10332775188642507), 
-# 		  QPointF(0.01778358411153924, 0.4931237651687721), 
-# 		  QPointF(0.11971653895701584, -0.9471886651325723), 
-# 		  QPointF(0.39558727064418875, -0.37503109712505367), 
-# 		  QPointF(0.4769690522174861, 0.8408775138127984), 
-# 		  QPointF(0.49912591211496893, -0.03502892198634444)
-# 		  ]
-
-# cHullSolver = ConvexHullSolver()
-
-# cHullSolver.compute_hull(ptList)
