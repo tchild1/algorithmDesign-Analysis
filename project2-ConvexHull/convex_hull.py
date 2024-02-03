@@ -15,6 +15,8 @@ from typing import List
 
 # Global variable that controls the speed of the recursion automation, in seconds
 PAUSE = 0.25
+RED = (255,0,0)
+
 
 class ConvexHullSolver(QObject):
 
@@ -60,23 +62,45 @@ class ConvexHullSolver(QObject):
 	# this is the smallest hull with only 2-3 points
 	def createSmallHull(self, points: List[QPointF]) -> ConvexHull:
 		if len(points) == 2:
-			leftNode: LinkedListNode = LinkedListNode(points[0], None)
-			rightNode: LinkedListNode = LinkedListNode(points[1], None)
-			leftNode.setPointTo(rightNode)
-			rightNode.setPointTo(leftNode)
+			return self.twoPointsToHull(points)
 		else:
-			highPoint, lowPoint = self.getHighAndLowPoint(points[1], points[2])
-			leftNode: LinkedListNode = LinkedListNode(points[0], None)
-			highNode: LinkedListNode = LinkedListNode(highPoint, None)
-			lowNode: LinkedListNode = LinkedListNode(lowPoint, None)
+			return self.threePointsToHull(points)
+	
+	def twoPointsToHull(self, points: List[QPointF]) -> ConvexHull:
+		leftNode: LinkedListNode = LinkedListNode(points[0], None, None)
+		rightNode: LinkedListNode = LinkedListNode(points[1], None, None)
+		leftNode.setPointTo(rightNode)
+		rightNode.setPointTo(leftNode)
+		
+		return ConvexHull(leftNode, rightNode)
+	
+	def threePointsToHull(self, points: List[QPointF]) -> ConvexHull:
+		highPoint, lowPoint = self.getHighAndLowPoint(points[1], points[2])
+		leftNode: LinkedListNode = LinkedListNode(points[0], None, None)
+		highNode: LinkedListNode = LinkedListNode(highPoint, None, None)
+		lowNode: LinkedListNode = LinkedListNode(lowPoint, None, None)
+		if self.isClockwise(leftNode, highNode, lowNode):
 			leftNode.setPointTo(highNode)
 			highNode.setPointTo(lowNode)
 			lowNode.setPointTo(leftNode)
-			rightNode: LinkedListNode = self.getRightNode(highNode, lowNode)
+		else:
+			highNode.setPointTo(leftNode)
+			lowNode.setPointTo(highNode)
+			leftNode.setPointTo(lowNode)
 
+		rightNode: LinkedListNode = self.getRightmostNode(highNode, lowNode)
 		return ConvexHull(leftNode, rightNode)
+
+	def isClockwise(self, nodeOne: LinkedListNode, nodeTwo: LinkedListNode, nodeThree: LinkedListNode) -> bool:
+		nodeOneTwoSlope = self.getSlope(nodeOne, nodeTwo)
+		nodeTwoThreeSlope = self.getSlope(nodeTwo, nodeThree)
+		nodeThreeOneSlope = self.getSlope(nodeThree, nodeOne)
+		if nodeOneTwoSlope <= nodeTwoThreeSlope < nodeThreeOneSlope or nodeTwoThreeSlope < nodeThreeOneSlope <= nodeOneTwoSlope or nodeThreeOneSlope <= nodeOneTwoSlope < nodeTwoThreeSlope:
+			return True
+		else:
+			return False
 	
-	def getRightNode(self, nodeOne: LinkedListNode, nodeTwo: LinkedListNode) -> LinkedListNode:
+	def getRightmostNode(self, nodeOne: LinkedListNode, nodeTwo: LinkedListNode) -> LinkedListNode:
 		if nodeOne.getXCoordinate() > nodeTwo.getXCoordinate():
 			return nodeOne
 		else:
@@ -102,8 +126,8 @@ class ConvexHullSolver(QObject):
 
 		changed = True
 		while changed:
-			currLeftTopNode, negChanged = self.getMostNegativeSlope(currRightTopNode, currLeftTopNode)
-			currRightTopNode, posChanged = self.getMostPositiveSlope(currLeftTopNode, currRightTopNode)
+			currLeftTopNode, negChanged = self.getMostNegativeSlope(currRightTopNode, currLeftTopNode, False)
+			currRightTopNode, posChanged = self.getMostPositiveSlope(currLeftTopNode, currRightTopNode, True)
 			changed = negChanged or posChanged
 
 		return currLeftTopNode, currRightTopNode
@@ -114,48 +138,70 @@ class ConvexHullSolver(QObject):
 
 		changed = True
 		while changed:
-			currLeftLowerNode, posChanged = self.getMostPositiveSlope(currRightLowerNode, currLeftLowerNode)
-			currRightLowerNode, negChanged = self.getMostNegativeSlope(currLeftLowerNode, currRightLowerNode)
+			currLeftLowerNode, posChanged = self.getMostPositiveSlope(currRightLowerNode, currLeftLowerNode, True)
+			currRightLowerNode, negChanged = self.getMostNegativeSlope(currLeftLowerNode, currRightLowerNode, False)
 			changed = negChanged or posChanged
 
 		return currRightLowerNode, currLeftLowerNode
 
-	def getMostNegativeSlope(self, staticNode: LinkedListNode, movingNode: LinkedListNode) -> tuple[LinkedListNode, bool]:
-		visitedNodes: set[LinkedListNode] = set() # IM using a set here because checking if the nodes were equal to the starting node caused an infinite loop... is this ok? I did the same on positive
-		visitedNodes.add(movingNode)
+	def getMostNegativeSlope(self, staticNode: LinkedListNode, movingNode: LinkedListNode, clockwise: bool) -> tuple[LinkedListNode, bool]:
 		currLowSlope: float = self.getSlope(movingNode, staticNode)
 		lowNode: LinkedListNode = movingNode
 		changed = False
 
-		nextNode: LinkedListNode = movingNode.getPointsTo()
-		while nextNode not in visitedNodes:
-			visitedNodes.add(nextNode)
-			thisSlope = self.getSlope(nextNode, staticNode)
-			if thisSlope < currLowSlope:
-				currLowSlope = thisSlope
-				lowNode = nextNode
-				changed = True
-			nextNode = nextNode.getPointsTo()
-			
+		if clockwise:
+			while True:
+				nextNode: LinkedListNode = movingNode.getPointsTo()
+				nextNodeSlope = self.getSlope(nextNode, staticNode)
+				if nextNodeSlope < currLowSlope:
+					currLowSlope = nextNodeSlope
+					lowNode = nextNode
+					changed = True
+					nextNode = nextNode.getPointsTo()
+				else:
+					break
+		else:
+			while True:
+				nextNode: LinkedListNode = movingNode.getPointsFrom()
+				nextNodeSlope = self.getSlope(nextNode, staticNode)
+				if nextNodeSlope < currLowSlope:
+					currLowSlope = nextNodeSlope
+					lowNode = nextNode
+					changed = True
+					nextNode = nextNode.getPointsFrom()
+				else:
+					break
+
 		return lowNode, changed
 	
-	def getMostPositiveSlope(self, staticNode: LinkedListNode, movingNode: LinkedListNode) -> tuple[LinkedListNode, bool]:
-		visitedNodes: set[LinkedListNode] = set()
-		visitedNodes.add(movingNode)
+	def getMostPositiveSlope(self, staticNode: LinkedListNode, movingNode: LinkedListNode, clockwise: bool) -> tuple[LinkedListNode, bool]:
 		currHighSlope: float = self.getSlope(staticNode, movingNode)
 		highNode: LinkedListNode = movingNode
 		changed = False
 
-		nextNode: LinkedListNode = movingNode.getPointsTo()
-		while nextNode not in visitedNodes:
-			visitedNodes.add(nextNode)
-			thisSlope = self.getSlope(staticNode, nextNode)
-			if thisSlope > currHighSlope:
-				currHighSlope = thisSlope
-				highNode = nextNode
-				changed = True
-			nextNode = nextNode.getPointsTo()
-
+		if clockwise:
+			while True:
+				nextNode: LinkedListNode = movingNode.getPointsTo()
+				nextNodeSlope = self.getSlope(staticNode, nextNode)
+				if nextNodeSlope > currHighSlope:
+					currHighSlope = nextNodeSlope
+					highNode = nextNode
+					changed = True
+					nextNode = nextNode.getPointsTo()
+				else:
+					break
+		else:
+			while True:
+				nextNode: LinkedListNode = movingNode.getPointsFrom()
+				nextNodeSlope = self.getSlope(staticNode, nextNode)
+				if nextNodeSlope > currHighSlope:
+					currHighSlope = nextNodeSlope
+					highNode = nextNode
+					changed = True
+					nextNode = nextNode.getPointsFrom()
+				else:
+					break
+			
 		return highNode, changed
 
 	def getSlope(self, nodeOne: LinkedListNode, nodeTwo: LinkedListNode) -> float:
@@ -173,26 +219,44 @@ class ConvexHullSolver(QObject):
 		t1 = time.time()
 		points = sorted(points, key=lambda coordinate: coordinate.x())
 		t2 = time.time()
-		print(t1-t2)
 
 		t3 = time.time()
 		convexHull: ConvexHull = self.cHullSolver(points)
 		polygon: List[QLineF] = self.getPolygon(convexHull)
 		t4 = time.time()
 
-		RED = (255,0,0)
 		self.showHull(polygon, RED)
 		self.showText('Time Elapsed (Convex Hull): {:3.3f} sec'.format(t4-t3))
 
 	def getPolygon(self, convexHull: ConvexHull) -> List[QLineF]:
 		hull: List[QLineF] = []
+		hullSet: set = set()
 
 		firstNode: LinkedListNode = convexHull.getLeftNode()
+		hullSet.add(firstNode)
 		hull.append(QLineF(firstNode.getCoordinates(), firstNode.getPointsTo().getCoordinates()))
 		nextNode: LinkedListNode = firstNode.getPointsTo()
 
-		while nextNode != firstNode:
+		while nextNode not in hullSet:
+			hullSet.add(nextNode)
 			hull.append(QLineF(nextNode.getCoordinates(), nextNode.getPointsTo().getCoordinates()))
 			nextNode = nextNode.getPointsTo()
 
 		return hull
+
+
+# ptList = [QPointF(-0.5953131868542136, 0.48545400641747793), 
+# 		  QPointF(-0.5277211083630247, 0.36785735549528353), 
+# 		  QPointF(-0.49516410074486683, 0.6170161121201718), 
+# 		  QPointF(-0.4593888800452677, -0.015017353252701815), 
+# 		  QPointF(-0.34562136924110765, -0.10332775188642507), 
+# 		  QPointF(0.01778358411153924, 0.4931237651687721), 
+# 		  QPointF(0.11971653895701584, -0.9471886651325723), 
+# 		  QPointF(0.39558727064418875, -0.37503109712505367), 
+# 		  QPointF(0.4769690522174861, 0.8408775138127984), 
+# 		  QPointF(0.49912591211496893, -0.03502892198634444)
+# 		  ]
+
+# cHullSolver = ConvexHullSolver()
+
+# cHullSolver.compute_hull(ptList)

@@ -2,8 +2,9 @@ from PyQt6.QtCore import QLineF, QPointF, QObject
 
 
 class LinkedListNode:
-	def __init__(self, coordinate, pointsTo):
+	def __init__(self, coordinate, pointsTo, pointsFrom):
 		self._pointsTo = pointsTo
+		self._pointsFrom = pointsFrom
 		self._coordinate = coordinate
 
 	def getCoordinates(self) -> QPointF:
@@ -18,5 +19,19 @@ class LinkedListNode:
 	def getPointsTo(self) -> 'LinkedListNode':
 		return self._pointsTo
 	
-	def setPointTo(self, node) -> None:
+	def getPointsFrom(self) -> 'LinkedListNode':
+		return self._pointsFrom
+	
+	def setPointFrom(self, node: 'LinkedListNode') -> None:
+		self._pointsFrom = node
+		node._setPointToPriv(self)
+	
+	def setPointTo(self, node: 'LinkedListNode') -> None:
+		self._pointsTo = node
+		node._setPointFromPriv(self)
+
+	def _setPointFromPriv(self, node) -> None:
+		self._pointsFrom = node
+	
+	def _setPointToPriv(self, node) -> None:
 		self._pointsTo = node
