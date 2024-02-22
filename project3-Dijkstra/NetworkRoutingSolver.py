@@ -15,10 +15,13 @@ class NetworkRoutingSolver:
 
     def getShortestPath( self, destIndex ):
         self.dest = destIndex
+        node = self.network.nodes[self.dest]
+
+        if node.distanceToStartNode == float('inf'):
+            return {'cost': float('inf'), 'path': []}
 
         path_edges = []
         total_length = 0
-        node = self.network.nodes[self.dest]
 
         nextNode = node.previousNode
         for edge in nextNode.neighbors:
